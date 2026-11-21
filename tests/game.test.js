@@ -9,9 +9,10 @@ import { NIGHT_CONFIG, TUNING } from "../src/config.js";
 
 const quiet={random_motes:false,random_shades:false,random_drifters:false,motes:[],shades:[],drifters:[],charms:[],wind_enabled:false};
 
-test("contract v1.1 has matching three-night tuning",async()=>{
+// Updated for Phase 3 (Ticket-03): contract bumped to v1.2 with fuel tuning.
+test("contract v1.2 has matching three-night tuning and fuel keys",async()=>{
   const c=JSON.parse(await readFile(new URL("../game.contract.json",import.meta.url),"utf8"));
-  assert.equal(c.contract_version,"1.1");assert.equal(c.tuning.night2_duration_s,NIGHT_CONFIG[2].duration);assert.equal(c.tuning.night3_duration_s,NIGHT_CONFIG[3].duration);assert.equal(c.tuning.player_speed,TUNING.player_speed);
+  assert.equal(c.contract_version,"1.2");for(const k of ["fuel_max","fuel_decay_per_s","fuel_per_mote","relight_cost","win_ratio","drain_per_s","low_fuel_threshold","capacity_max","night1_duration_s"])assert.equal(c.tuning[k],TUNING[k],k);assert.deepEqual([c.tuning.night1_duration_s,c.tuning.night2_duration_s,c.tuning.night3_duration_s],[240,270,300]);assert.equal(c.tuning.night2_duration_s,NIGHT_CONFIG[2].duration);assert.equal(c.tuning.night3_duration_s,NIGHT_CONFIG[3].duration);assert.equal(c.tuning.player_speed,TUNING.player_speed);
 });
 
 test("night 1 baseline has the PRD lantern layout and 24 mote points",()=>{
@@ -96,10 +97,11 @@ test("input frame ticks must be strictly increasing and values valid",()=>{
   assert.throws(()=>validateFrames([{tick:1},{tick:1}]),{code:2});assert.throws(()=>validateFrames([{tick:0,move:[2,0]}]),{code:2});assert.throws(()=>validateFrames([{tick:0,pause:1}]),{code:2});
 });
 
-test("victory emits contract events and awards normalized score",()=>{
+// Replaced in Phase 3: the all_lit early victory and time-bonus score were removed by Ticket-03 section 3/5.
+test("lighting every lantern no longer ends the night early",()=>{
   const lanterns=[{id:"L1",pos:[0,0,0]},...NIGHT_CONFIG[1].lanterns.slice(1).map(l=>({id:l.id,lit:true}))];
   const g=new Game({night:1,seed:1,scenario:{...quiet,player:{carried:10},lanterns}});g.runTick({interact:true});
-  assert.equal(g.state,"won");assert.equal(g.score,948);assert.ok(g.events.some(e=>e.name==="deposit"));assert.ok(g.events.some(e=>e.name==="lantern_lit"));assert.ok(g.events.some(e=>e.name==="game_over"));
+  assert.equal(g.state,"playing");assert.equal(g.score,150);assert.ok(g.events.some(e=>e.name==="lantern_lit"&&e.data.relight===false));assert.ok(!g.events.some(e=>e.name==="game_over"));
 });
 
 test("headless output is deterministic and ends with JSONL end record",async()=>{
@@ -114,7 +116,8 @@ test("malformed headless scenario exits with contract code 2",async()=>{
   const dir=await mkdtemp(path.join(os.tmpdir(),"lantern-invalid-"));try{const scenario=path.join(dir,"bad.json"),out=path.join(dir,"out.jsonl");await writeFile(scenario,'{"player":{"pos":[0,0]}}');const r=spawnSync(process.execPath,["src/cli.mjs","--seed","1","--night","1","--scenario",scenario,"--ticks","1","--out",out],{cwd:path.resolve("."),encoding:"utf8"});assert.equal(r.status,2);assert.match(r.stderr,/Invalid scenario/);}finally{await rm(dir,{recursive:true,force:true});}
 });
 
-test("full 21,600-tick night 3 simulation completes below the 30-second budget",()=>{
+// Updated in Phase 3: night 3 now lasts 300 s = 18,000 ticks; the run still uses the 21,600-tick contract budget.
+test("full night 3 simulation (budget 21,600 ticks) completes below 30 seconds",()=>{
   const g=new Game({night:3,seed:7,scenario:{...quiet,wind_enabled:false}}),start=performance.now();for(let i=0;i<21600&&["playing","paused"].includes(g.state);i++)g.runTick({});
-  assert.equal(g.tick,21600);assert.equal(g.state,"lost");assert.ok(performance.now()-start<30000);
+  assert.equal(g.tick,18000);assert.equal(g.state,"lost");assert.equal(g.events.at(-1).data.reason,"dawn");assert.ok(performance.now()-start<30000);
 });
