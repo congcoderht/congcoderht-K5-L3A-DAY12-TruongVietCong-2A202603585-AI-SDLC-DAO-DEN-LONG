@@ -1,0 +1,5 @@
+﻿Command: node src/cli.mjs --seed 7 --night 3 --scenario docs/scenarios/night3-full.json --ticks 21600 --snapshot-every 600 --out docs/proof/phase-2-night3.jsonl
+Runtime: Node v24.11.1
+Wall time: 0.112 s
+Ticks requested: 21600
+Exit code: 0
