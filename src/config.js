@@ -1,30 +1,29 @@
 export const TICK_HZ = 60;
 
-// Phase 1 PRD leaves these values open. Ticket-02's pasted copy refers to
-// normalized values in Part 1 but does not include that numeric table.
-// Provisional values are therefore explicit here and mirrored by the contract.
+// Normalized values from Ticket-02 Part 1 (context.md) plus Ticket-03 fuel values.
+// Mirrored by game.contract.json.
 export const TUNING = Object.freeze({
-  player_speed: 4.8,
+  player_speed: 6.0,
   carry_capacity: 10,
   lantern_cost: 10,
-  pickup_radius: 1.2,
+  pickup_radius: 1.0,
   interact_radius: 2.0,
-  pulse_cost: 1,
-  pulse_radius: 6.0,
+  pulse_cost: 3,
+  pulse_radius: 5.0,
   night1_duration_s: 240,
   flames: 3,
   invuln_s: 1.5,
-  hit_drop_ratio: 0.25,
+  hit_drop_ratio: 0.5,
   pulse_stun_s: 2,
-  pulse_push_m: 3,
+  pulse_push_m: 4,
   pulse_cooldown_s: 3,
-  safe_radius: 4,
-  shade_speed: 2.4,
+  safe_radius: 6,
+  shade_speed: 4.0,
   shade_hit_radius: 1,
   fall_enabled: true,
   dash_speed: 14,
   dash_duration_s: 0.2,
-  dash_cooldown_s: 2,
+  dash_cooldown_s: 1.5,
   night2_duration_s: 270,
   night3_duration_s: 300,
   fuel_max: 100,
@@ -81,4 +80,4 @@ export const DRIFTER_CONTACT = 1.2;
 export const DRIFTER_FLEE_TICKS = 240;
 export const DRIFTER_DROP_TICKS = 120;
 export const CHARM_SPEED = 7.2;
-export const DRIFT_TTL_TICKS = 900;
+export const DRIFT_TTL_TICKS = 480;

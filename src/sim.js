@@ -16,7 +16,7 @@ export class Game {
     this.windEnabled=scenario.wind_enabled ?? true; this.wind={active:false,dir_deg:0}; this.windForecastDir=0;
     const p=scenario.player||{};
     this.player={pos:pos3(p.pos,this.map.startPosition||[0,0,0]),vel:[0,0,0],grounded:true,carried:p.carried??0,flames:p.flames??TUNING.flames,
-      invuln:p.invuln_ticks??0,dashCd:p.dash_cd_ticks??0,pulseCd:p.pulse_cd_ticks??0,charm:p.charm_ticks??0,dashLeft:0,jumpV:0,groundY:0,launchLocked:false,launchVel:[0,0],successfulLights:p.successful_lights??0};
+      invuln:p.invuln_ticks??0,dashCd:p.dash_cd_ticks??0,pulseCd:p.pulse_cd_ticks??0,charm:p.charm_ticks??0,dashLeft:0,jumpV:0,groundY:0,launchLocked:false,launchVel:[0,0],respawnWait:0,successfulLights:p.successful_lights??0};
     this.player.capacity=this.capacityFor(this.player.successfulLights);
     this.player.groundY=Array.isArray(p.pos)&&Number.isFinite(p.pos[1])?p.pos[1]:this.surfaceY(this.player.pos);this.player.pos[1]=this.player.groundY;
     this.lanterns=this.map.lanterns.map(l=>({...clone(l),deposited:0,lit:false,fuelTicks:0,ever_lit:false,relit_count:0}));
@@ -38,7 +38,8 @@ export class Game {
     this.emit("night_start",{night:this.night},0);
   }
   newMote(pos,kind="random",id){return {id:id||`M${++this.serial.mote}`,pos:pos3(pos),kind,ttl:kind==="dropped"?DRIFT_TTL_TICKS:null};}
-  newShade(pos,id,state="spawning",stateTicks=30){return {id:id||`S${++this.serial.shade}`,pos:pos3(pos),state,stateTicks,stunned:0,recoil:0,hitIds:[],targetLanternId:null,drainTicks:0,repelTicks:0,repelLanternId:null};}
+  shadeSpeed(){return this.night===3?4.5:TUNING.shade_speed;}
+  newShade(pos,id,state="spawning",stateTicks=30){return {id:id||`S${++this.serial.shade}`,pos:pos3(pos),state,stateTicks,stunned:0,recoil:0,hitIds:[],targetLanternId:null,drainTicks:0,repelTicks:0,repelLanternId:null,pushTicks:0,pushDir:[1,0]};}
   newDrifter(pos,id){return {id:id||`D${++this.serial.drifter}`,pos:pos3(pos),state:"idle",stolen:0,stateTicks:0,hasStolen:false};}
   emit(name,data={},at=this.tick){this.events.push({type:"event",tick:at,name,data});}
   fuelOf(l){return l.fuelTicks/TICK_HZ;}
@@ -74,7 +75,7 @@ export class Game {
     this.player.pos=this.player.pos.map(round3);this.player.vel=this.player.vel.map(round3);
   }
   stepWind(){const w=this.map.windInterval;if(!w||!this.windEnabled)return;const t=this.simTick%w;if(t===w-this.map.windForecast){this.windForecastDir=Math.floor(this.rng()*360);}this.wind.active=this.simTick>0&&t<this.map.windDuration;this.wind.dir_deg=this.windForecastDir;if(this.wind.active){const a=this.wind.dir_deg*Math.PI/180;this.player.pos[0]+=Math.cos(a)*this.map.windSpeed/TICK_HZ;this.player.pos[2]+=Math.sin(a)*this.map.windSpeed/TICK_HZ;}}
-  movePlayer(edge,dt){const p=this.player;const [mx,mz]=this.inputs.move;const len=Math.hypot(mx,mz);let x=len>1?mx/len:mx,z=len>1?mz/len:mz;const a=this.inputs.cam_yaw_deg*Math.PI/180;const wx=x*Math.cos(a)+z*Math.sin(a),wz=-x*Math.sin(a)+z*Math.cos(a);
+  movePlayer(edge,dt){const p=this.player;if(p.respawnWait>0){p.respawnWait--;if(p.respawnWait===0){p.pos=pos3(this.map.startPosition||[0,0,0]);p.groundY=this.surfaceY(p.pos);p.pos[1]=p.groundY;p.grounded=true;p.jumpV=0;p.launchLocked=false;p.vel=[0,0,0];p.invuln=Math.round(TUNING.invuln_s*TICK_HZ);}return;}const [mx,mz]=this.inputs.move;const len=Math.hypot(mx,mz);let x=len>1?mx/len:mx,z=len>1?mz/len:mz;const a=this.inputs.cam_yaw_deg*Math.PI/180;const wx=x*Math.cos(a)+z*Math.sin(a),wz=-x*Math.sin(a)+z*Math.cos(a);
     if(p.charm>0)p.dashCd=0;
     if(edge.dash&&p.dashCd===0&&p.dashLeft===0){p.dashLeft=Math.round(TUNING.dash_duration_s*TICK_HZ);p.dashCd=p.charm>0?0:Math.round(TUNING.dash_cooldown_s*TICK_HZ);this.emit("dash",{},this.tick);}
     const speed=p.charm>0?CHARM_SPEED:TUNING.player_speed;
@@ -87,23 +88,23 @@ export class Game {
     if(p.grounded&&this.night===3&&Math.hypot(p.pos[0],p.pos[2]-13)<=1){p.vel[0]=0;p.vel[2]=-8;p.launchVel=[0,-8];p.launchLocked=true;p.groundY=6;p.jumpV=12;p.grounded=false;}
     const oldX=p.pos[0],oldZ=p.pos[2];p.pos[0]+=p.vel[0]*dt;p.pos[2]+=p.vel[2]*dt;
     if(this.night===3&&Math.hypot(p.pos[0],p.pos[2])<2.4&&p.pos[1]<8&&p.pos[1]+1.8>0){p.pos[0]=oldX;p.pos[2]=oldZ;}
-    const walkable=this.isWalkable(p.pos),surface=walkable?this.surfaceY(p.pos):-10;
+    const walkable=this.isWalkable(p.pos),surface=walkable?this.surfaceY(p.pos):-1000;
     if(p.grounded){
-      if(!walkable){p.groundY=-10;p.grounded=false;p.jumpV=0;}
+      if(!walkable){p.groundY=-1000;p.grounded=false;p.jumpV=0;}
       else if(this.night===3&&this.onRamp(p.pos)){p.groundY=surface;p.pos[1]=surface;}
       else if(surface>p.groundY+.01){p.pos[0]=oldX;p.pos[2]=oldZ;}
       else if(surface<p.groundY-.01){p.groundY=surface;p.grounded=false;p.jumpV=0;}
     }else if(walkable&&surface>p.groundY&&p.pos[1]>surface){p.groundY=surface;}
-    else if(!walkable)p.groundY=-10;
-    if(!p.grounded){p.jumpV-=18*dt;p.pos[1]+=p.jumpV*dt;if(p.jumpV<=0&&p.pos[1]<=p.groundY){p.pos[1]=p.groundY;p.jumpV=0;p.grounded=true;p.launchLocked=false;}}
+    else if(!walkable)p.groundY=-1000;
+    if(!p.grounded){p.jumpV-=20*dt;p.pos[1]+=p.jumpV*dt;if(p.jumpV<=0&&p.pos[1]<=p.groundY){p.pos[1]=p.groundY;p.jumpV=0;p.grounded=true;p.launchLocked=false;}}
     else p.pos[1]=p.groundY;
     p.vel[1]=p.grounded?0:p.jumpV;
-    if(p.pos[1]<-8&&TUNING.fall_enabled&&p.invuln===0){this.hit("fall");if(this.state!=="lost"){p.pos=pos3(this.map.startPosition||[0,0,0]);p.groundY=this.surfaceY(p.pos);p.pos[1]=p.groundY;p.grounded=true;p.jumpV=0;p.launchLocked=false;p.vel=[0,0,0];}}
+    if(p.pos[1]<-10&&TUNING.fall_enabled){this.hit("fall");if(this.state!=="lost"){p.respawnWait=60;p.vel=[0,0,0];p.jumpV=0;}}
   }
   onRamp(p){const r=Math.hypot(p[0],p[2]),ang=(Math.atan2(p[2],p[0])*180/Math.PI+360)%360;return r>=24&&r<=30&&Math.min(Math.abs(ang-30),Math.abs(ang-150))<=(1.5/r*180/Math.PI);}
   surfaceY(p){if(this.night!==3)return 0;const r=Math.hypot(p[0],p[2]);if(this.onRamp(p))return 3*(30-r)/6;if(r<=8)return 6;if(p[2]>0&&r>=12&&r<=24)return 3;return 0;}
   isWalkable(p){if(this.night===1)return Math.hypot(p[0],p[2])<=40;if(this.night===2){const onIsland=(cx)=>Math.hypot(p[0]-cx,p[2])<=28;return onIsland(0)||onIsland(70)||(p[0]>=26&&p[0]<=44&&Math.abs(p[2])<=2);}return Math.hypot(p[0],p[2])<=45;}
-  pickups(){const p=this.player;for(const m of [...this.motes].sort((a,b)=>idNum(a.id)-idNum(b.id))){if(p.carried>=p.capacity)break;if(distanceXZ(p.pos,m.pos)<=TUNING.pickup_radius){this.motes=this.motes.filter(x=>x!==m);p.carried++;this.emit("mote_picked",{carried:p.carried},this.tick);}}
+  pickups(){const p=this.player;if(p.respawnWait>0)return;for(const m of [...this.motes].sort((a,b)=>idNum(a.id)-idNum(b.id))){if(p.carried>=p.capacity)break;if(distanceXZ(p.pos,m.pos)<=TUNING.pickup_radius){this.motes=this.motes.filter(x=>x!==m);p.carried++;this.emit("mote_picked",{carried:p.carried},this.tick);}}
     for(const c of this.charms){if(c.available&&distanceXZ(p.pos,c.pos)<=TUNING.pickup_radius){c.available=false;c.respawn=CHARM_RESPAWN_TICKS;p.charm=DEFAULT_CHARM_DURATION;this.emit("charm_picked",{charm_id:c.id,charm_ticks:p.charm},this.tick);}}
   }
   interact(){
@@ -115,32 +116,33 @@ export class Game {
   }
   repelShades(l){for(const s of this.shades)if(distanceXZ(s.pos,l.pos)<=6){s.repelTicks=30;s.repelLanternId=l.id;if(s.state==="drain"){s.state="wander";s.drainTicks=0;}}}
   updateSafety(){for(const s of this.shades){if(s.state==="stunned"&&s.stunned===0)s.state="wander";const safe=this.lanterns.some(l=>l.lit&&this.fuelOf(l)>=TUNING.low_fuel_threshold&&distanceXZ(s.pos,l.pos)<=TUNING.safe_radius);s.safe=safe;}}
-  pulse(){const p=this.player;if(p.pulseCd>0||p.carried<TUNING.pulse_cost)return;p.carried-=TUNING.pulse_cost;p.pulseCd=Math.round(TUNING.pulse_cooldown_s*TICK_HZ);this.pulseSerial++;const stunned=[];for(const s of this.shades){if(distanceXZ(p.pos,s.pos)<=TUNING.pulse_radius){s.hitIds.push(this.pulseSerial);this.score+=s.state==="drain"?TUNING.score.per_drain_stun:TUNING.score.per_stun;if(s.state!=="spawning"){s.state="stunned";s.drainTicks=0;s.repelTicks=0;s.stunned=Math.round(TUNING.pulse_stun_s*TICK_HZ);stunned.push(s.id);}const dx=s.pos[0]-p.pos[0],dz=s.pos[2]-p.pos[2],d=Math.hypot(dx,dz)||1;s.pos[0]+=dx/d*TUNING.pulse_push_m;s.pos[2]+=dz/d*TUNING.pulse_push_m;}}
+  pulse(){const p=this.player;if(p.pulseCd>0||p.carried<TUNING.pulse_cost)return;p.carried-=TUNING.pulse_cost;p.pulseCd=Math.round(TUNING.pulse_cooldown_s*TICK_HZ);this.pulseSerial++;const stunned=[];for(const s of this.shades){if(Math.hypot(s.pos[0]-p.pos[0],s.pos[1]-(p.pos[1]+0.8),s.pos[2]-p.pos[2])<=TUNING.pulse_radius){s.hitIds.push(this.pulseSerial);this.score+=s.state==="drain"?TUNING.score.per_drain_stun:TUNING.score.per_stun;if(s.state!=="spawning"){s.state="stunned";s.drainTicks=0;s.repelTicks=0;s.stunned=Math.round(TUNING.pulse_stun_s*TICK_HZ);stunned.push(s.id);}const dx=s.pos[0]-p.pos[0],dz=s.pos[2]-p.pos[2],d=Math.hypot(dx,dz);s.pushDir=d>1e-9?[dx/d,dz/d]:[1,0];s.pushTicks=15;}}
     for(const d of this.drifters){if(distanceXZ(p.pos,d.pos)<=TUNING.pulse_radius){if(d.state==="chase"){d.state="flee";d.stateTicks=DRIFTER_DROP_TICKS;}else if(d.state==="flee"&&d.stolen>0){const amount=d.stolen;d.stolen=0;this.dropMotes(d.pos,amount);d.state="removed";this.emit("drifter_drop",{drifter_id:d.id,amount},this.tick);}}}
     this.emit("pulse",{stunned_ids:stunned.sort((a,b)=>idNum(a)-idNum(b))},this.tick);
   }
-  dropMotes(pos,n){for(let i=0;i<n;i++)this.motes.push(this.newMote([pos[0]+(i%2)*.3,pos[1],pos[2]+Math.floor(i/2)*.3],"dropped"));}
+  dropMotes(pos,n,ring=false){for(let i=0;i<n;i++){const a=i*2*Math.PI/Math.max(1,n),r=ring?2:0.3*(i>0);this.motes.push(this.newMote([round3(pos[0]+Math.cos(a)*r),this.surfaceY(pos),round3(pos[2]+Math.sin(a)*r)],"dropped"));}}
   moveShades(){const p=this.player;for(const s of [...this.shades].sort((a,b)=>idNum(a.id)-idNum(b.id))){
     if(s.state==="spawning"){if(s.stateTicks===0)s.state="wander";continue;}
+    if(s.pushTicks>0){const step=TUNING.pulse_push_m/15,nx=s.pos[0]+s.pushDir[0]*step,nz=s.pos[2]+s.pushDir[1]*step;if(this.isWalkable([nx,0,nz])){s.pos[0]=nx;s.pos[2]=nz;}else s.pushTicks=1;s.pushTicks--;}
     if(s.state==="recoil"||s.stunned>0)continue;
     if(s.repelTicks>0){const l=this.lanterns.find(x=>x.id===s.repelLanternId);if(l){let dx=s.pos[0]-l.pos[0],dz=s.pos[2]-l.pos[2],d=Math.hypot(dx,dz)||1,step=Math.max(0,REPEL_EDGE_M-d)/s.repelTicks;s.pos[0]+=dx/d*step;s.pos[2]+=dz/d*step;}s.repelTicks--;if(s.repelTicks===0)s.repelLanternId=null;continue;}
     if(s.state==="drain"){const l=this.lanterns.find(x=>x.id===s.targetLanternId),pd=distanceXZ(p.pos,s.pos);if(pd<=6){s.state="chase";s.drainTicks=0;}else if(!l||!l.lit||this.fuelOf(l)>=TUNING.low_fuel_threshold||distanceXZ(s.pos,l.pos)>2){s.state="wander";s.drainTicks=0;}else continue;}
     if(s.safe)continue;
-    const pd=distanceXZ(p.pos,s.pos);if(s.state==="chase"){if(pd<22){const dx=p.pos[0]-s.pos[0],dz=p.pos[2]-s.pos[2],d=Math.hypot(dx,dz)||1;s.pos[0]+=dx/d*TUNING.shade_speed/TICK_HZ;s.pos[2]+=dz/d*TUNING.shade_speed/TICK_HZ;continue;}s.state="wander";}
+    const pd=distanceXZ(p.pos,s.pos);if(s.state==="chase"){if(pd<=18){const dx=p.pos[0]-s.pos[0],dz=p.pos[2]-s.pos[2],d=Math.hypot(dx,dz)||1;s.pos[0]+=dx/d*this.shadeSpeed()/TICK_HZ;s.pos[2]+=dz/d*this.shadeSpeed()/TICK_HZ;continue;}s.state="wander";}
     if(s.state==="wander"){
       const weak=this.lanterns.filter(l=>l.lit&&this.fuelOf(l)<TUNING.low_fuel_threshold).sort((a,b)=>distanceXZ(s.pos,a.pos)-distanceXZ(s.pos,b.pos)||idNum(a.id)-idNum(b.id))[0];
       const off=this.lanterns.filter(l=>!l.lit).sort((a,b)=>distanceXZ(s.pos,a.pos)-distanceXZ(s.pos,b.pos)||idNum(a.id)-idNum(b.id))[0];
       const target=weak||off;s.targetLanternId=target?.id||null;
-      if(weak){const d=distanceXZ(s.pos,weak.pos);if(d<=2){s.state="drain";s.drainTicks=0;continue;}const dx=weak.pos[0]-s.pos[0],dz=weak.pos[2]-s.pos[2];s.pos[0]+=dx/d*TUNING.shade_speed*.5/TICK_HZ;s.pos[2]+=dz/d*TUNING.shade_speed*.5/TICK_HZ;continue;}
+      if(weak){const d=distanceXZ(s.pos,weak.pos);if(d<=2){s.state="drain";s.drainTicks=0;continue;}const dx=weak.pos[0]-s.pos[0],dz=weak.pos[2]-s.pos[2];s.pos[0]+=dx/d*this.shadeSpeed()*.5/TICK_HZ;s.pos[2]+=dz/d*this.shadeSpeed()*.5/TICK_HZ;continue;}
       const pd2=distanceXZ(p.pos,s.pos);
-      if(off&&pd2>=22){const dx=off.pos[0]-s.pos[0],dz=off.pos[2]-s.pos[2],d=Math.hypot(dx,dz);if(d>0.05){s.pos[0]+=dx/d*TUNING.shade_speed*.5/TICK_HZ;s.pos[2]+=dz/d*TUNING.shade_speed*.5/TICK_HZ;}continue;}
+      if(off&&pd2>12){const dx=off.pos[0]-s.pos[0],dz=off.pos[2]-s.pos[2],d=Math.hypot(dx,dz);if(d>0.05){s.pos[0]+=dx/d*this.shadeSpeed()*.5/TICK_HZ;s.pos[2]+=dz/d*this.shadeSpeed()*.5/TICK_HZ;}continue;}
     }
-    const dx=p.pos[0]-s.pos[0],dz=p.pos[2]-s.pos[2],d=Math.hypot(dx,dz)||1;if(d<22){s.state="chase";s.pos[0]+=dx/d*TUNING.shade_speed/TICK_HZ;s.pos[2]+=dz/d*TUNING.shade_speed/TICK_HZ;}else{s.pos[0]+=dx/d*TUNING.shade_speed*.5/TICK_HZ;s.pos[2]+=dz/d*TUNING.shade_speed*.5/TICK_HZ;}
+    const dx=p.pos[0]-s.pos[0],dz=p.pos[2]-s.pos[2],d=Math.hypot(dx,dz)||1;if(d<=12){s.state="chase";s.pos[0]+=dx/d*this.shadeSpeed()/TICK_HZ;s.pos[2]+=dz/d*this.shadeSpeed()/TICK_HZ;}else{s.pos[0]+=dx/d*this.shadeSpeed()*.5/TICK_HZ;s.pos[2]+=dz/d*this.shadeSpeed()*.5/TICK_HZ;}
   }}
   moveDrifters(){for(const d of this.drifters){if(d.state==="removed")continue;const p=this.player,dist=distanceXZ(p.pos,d.pos);if(d.state==="idle"&&p.carried>=5&&dist<=DRIFTER_CHASE_RANGE)d.state="chase";if(d.state==="chase"&&(p.carried<5||dist>DRIFTER_CHASE_RANGE))d.state="idle";let tx=p.pos[0]-d.pos[0],tz=p.pos[2]-d.pos[2],speed=d.state==="chase"?DRIFTER_SPEED:DRIFTER_IDLE_SPEED;if(d.state==="flee"){tx=-tx;tz=-tz;speed=DRIFTER_SPEED;if(d.stateTicks===0)d.state="removed";}const len=Math.hypot(tx,tz)||1;d.pos[0]+=tx/len*speed/TICK_HZ;d.pos[2]+=tz/len*speed/TICK_HZ;}}
   collisions(){const p=this.player;for(const d of [...this.drifters].sort((a,b)=>idNum(a.id)-idNum(b.id))){if(d.state==="chase"&&!d.hasStolen&&distanceXZ(p.pos,d.pos)<=DRIFTER_CONTACT){const amount=Math.min(3,p.carried);if(amount){p.carried-=amount;d.stolen=amount;d.hasStolen=true;d.state="flee";d.stateTicks=DRIFTER_FLEE_TICKS;this.emit("drifter_steal",{drifter_id:d.id,amount,carried:p.carried},this.tick);}}}
-    for(const s of [...this.shades].sort((a,b)=>idNum(a.id)-idNum(b.id))){if(s.state==="spawning"||s.state==="recoil"||s.state==="stunned"||s.safe||p.invuln>0)continue;if(distanceXZ(p.pos,s.pos)<=TUNING.shade_hit_radius)this.hit("shade");}}
-  hit(by){const p=this.player;if(p.invuln>0)return;const lost=by==="fall"?p.carried:Math.floor(p.carried*TUNING.hit_drop_ratio);p.carried-=lost;if(by==="shade")this.dropMotes(p.pos,lost);p.flames=Math.max(0,p.flames-1);p.invuln=Math.round(TUNING.invuln_s*TICK_HZ);const data={by,flames:p.flames,dropped:lost};if(by==="fall")data.lost=lost;this.emit("player_hit",data,this.tick);if(p.flames===0){this.state="lost";this.emit("game_over",{result:"lost",reason:"no_flames"},this.tick);}}
+    for(const s of [...this.shades].sort((a,b)=>idNum(a.id)-idNum(b.id))){if(s.state==="spawning"||s.state==="recoil"||s.state==="stunned"||s.safe||p.invuln>0||p.respawnWait>0)continue;if(distanceXZ(p.pos,s.pos)<=TUNING.shade_hit_radius)this.hit("shade");}}
+  hit(by){const p=this.player;if(p.invuln>0&&by!=="fall")return;const lost=by==="fall"?p.carried:Math.floor(p.carried*TUNING.hit_drop_ratio);p.carried-=lost;if(by==="shade")this.dropMotes(p.pos,lost,true);p.flames=Math.max(0,p.flames-1);p.invuln=Math.round(TUNING.invuln_s*TICK_HZ);const data={by,flames:p.flames,dropped:lost};if(by==="fall")data.lost=lost;this.emit("player_hit",data,this.tick);if(p.flames===0){this.state="lost";this.emit("game_over",{result:"lost",reason:"no_flames"},this.tick);}}
   spawnEntities(){const firstShade=this.simTick===this.map.shadeFirst;const shadeDue=firstShade||(this.simTick>this.map.shadeFirst&&(this.simTick-this.map.shadeFirst)%this.map.shadeInterval===0);if(this.randomShades&&shadeDue&&this.shades.length<this.map.shadeMax){const count=firstShade&&this.night===1?2:1;for(let i=0;i<count&&this.shades.length<this.map.shadeMax;i++){const candidates=this.map.shadePoints.filter(q=>distanceXZ(q,this.player.pos)>=15);const pos=candidates[Math.floor(this.rng()*candidates.length)]||this.map.shadePoints[0];const s=this.newShade(pos);this.shades.push(s);this.emit("shade_spawned",{id:s.id},this.tick);}}
     if(this.night>1&&this.randomDrifters&&this.simTick>0&&this.simTick%DRIFTER_SPAWN_INTERVAL===0&&this.drifters.filter(d=>d.state!=="removed").length<DRIFTER_MAX){const candidates=this.map.drifterSpawnPoints||this.map.shadePoints;const p=candidates[Math.floor(this.rng()*candidates.length)];const d=this.newDrifter(p);this.drifters.push(d);}
     if(this.randomMotes&&this.simTick%240===0&&this.motes.length<30){const p=this.map.motePoints[Math.floor(this.rng()*this.map.motePoints.length)];this.motes.push(this.newMote(p,"random"));}

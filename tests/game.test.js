@@ -26,7 +26,7 @@ test("night 1 shades spawn twice at five seconds, then follow the eight-second s
 
 test("dash triggers on rising edge and moves at the contract speed",()=>{
   const g=new Game({night:1,seed:1,scenario:quiet});g.runTick({move:[0,1],dash:true});
-  assert.equal(g.events.find(e=>e.name==="dash").tick,1);assert.ok(g.player.pos[2]>0.22);assert.equal(g.player.dashCd,120);
+  assert.equal(g.events.find(e=>e.name==="dash").tick,1);assert.ok(g.player.pos[2]>0.22);assert.equal(g.player.dashCd,90); // Ticket-02 normalized cooldown 1.5 s
 });
 
 test("wind charm removes dash cooldown while active",()=>{
@@ -47,7 +47,7 @@ test("drifter steals at most three motes and records its state",()=>{
 
 test("pulse against a fleeing drifter returns stolen motes as dropped motes",()=>{
   const g=new Game({night:2,seed:1,scenario:{...quiet,player:{carried:5},drifters:[{id:"D1",pos:[1,0,0],state:"flee",stolen:2,state_ticks_left:80}]}});g.runTick({pulse:true});
-  assert.equal(g.player.carried,4);assert.equal(g.drifters[0].state,"removed");assert.ok(g.motes.some(m=>m.kind==="dropped"));assert.ok(g.events.some(e=>e.name==="drifter_drop"&&e.data.amount===2));
+  assert.equal(g.player.carried,2); // Ticket-02 pulse cost is 3 motesassert.equal(g.drifters[0].state,"removed");assert.ok(g.motes.some(m=>m.kind==="dropped"));assert.ok(g.events.some(e=>e.name==="drifter_drop"&&e.data.amount===2));
 });
 
 test("pause freezes simulation and a rising-edge resume continues it",()=>{
@@ -89,7 +89,8 @@ test("night 3 launch pad lands Mây on the raised center tier",()=>{
 });
 
 test("fall hit reports lost carried motes and respawns Mây safely",()=>{
-  const g=new Game({night:1,seed:1,scenario:{...quiet,player:{pos:[39.99,0,0],carried:4}}});for(let i=0;i<60;i++)g.runTick({move:[1,0]});
+  const g=new Game({night:1,seed:1,scenario:{...quiet,player:{pos:[39.99,0,0],carried:4}}});// Ticket-02: fall below Y=-10, wait 60 ticks, then respawn.
+  for(let i=0;i<200&&!g.events.some(e=>e.name==="player_hit");i++)g.runTick({move:[1,0]});assert.ok(g.player.respawnWait>0);for(let i=0;i<60;i++)g.runTick({});assert.equal(g.player.invuln,90);
   const hit=g.events.find(e=>e.name==="player_hit"&&e.data.by==="fall");assert.ok(hit);assert.equal(hit.data.lost,4);assert.equal(g.player.flames,2);assert.ok(Math.hypot(g.player.pos[0],g.player.pos[2])<1);assert.equal(g.player.grounded,true);
 });
 

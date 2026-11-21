@@ -1,9 +1,9 @@
-﻿# Agent instructions — Đảo Đèn Lồng
+# Agent instructions — Đảo Đèn Lồng
 
 ## Current scope
 - The repository now contains the Phase 1 baseline and Phase 2 extension; keep `docs/notes/phase-1-spec.md` and `phase-2-spec.md` aligned with behavior.
 - Read the supplied phase requirement and acceptance criteria before changing scope.
-- `game.contract.json` is the source of exposed tuning values. The pasted Ticket-02 omits the numeric “Part 1” table it references; provisional values are explicitly documented and must not be represented as lab-confirmed.
+- `game.contract.json` is the source of exposed tuning values. They must match Ticket-02 Part 1 (normalized table, see `context.md`) and Ticket-03 (contract v1.2). Never invent provisional values when a ticket gives a number.
 
 ## Project decisions
 - Use JavaScript ES modules and Node.js for the deterministic, headless simulation so it runs on macOS and Linux without a GPU.
