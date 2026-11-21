@@ -1,0 +1,13 @@
+﻿# Phase 0 headless runtime smoke check
+
+Command: `npm run hello:headless`
+Runtime observed: Node.js v24.11.1
+Exit code: 0
+
+Captured stdout:
+
+```json
+{"type":"hello","phase":0,"runtime":"node","headless":true}
+```
+
+Scope: confirms only that the Node.js runtime and the no-dependency headless entry point run. It does not verify Phase 1 gameplay or Test Contract v1.0.
