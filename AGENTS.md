@@ -1,9 +1,9 @@
 ﻿# Agent instructions — Đảo Đèn Lồng
 
 ## Current scope
-- The current milestone is Phase 0 setup. Do not claim Phase 1 gameplay or Test Contract v1.0 is implemented until it is actually built and verified.
-- Read `docs/notes/phase-0.md` and the released phase requirements before changing scope.
-- Phase 1 must satisfy the supplied PRD-0 and its exact `game.contract.json` / headless contract. Do not invent contract tuning values or report unverified requirements as passing.
+- The repository now contains the Phase 1 baseline and Phase 2 extension; keep `docs/notes/phase-1-spec.md` and `phase-2-spec.md` aligned with behavior.
+- Read the supplied phase requirement and acceptance criteria before changing scope.
+- `game.contract.json` is the source of exposed tuning values. The pasted Ticket-02 omits the numeric “Part 1” table it references; provisional values are explicitly documented and must not be represented as lab-confirmed.
 
 ## Project decisions
 - Use JavaScript ES modules and Node.js for the deterministic, headless simulation so it runs on macOS and Linux without a GPU.
@@ -13,6 +13,12 @@
 ## Phase 0 command
 - Environment smoke check: `npm run hello:headless`
 - It should print one JSON object and exit with code 0. This is only a runtime check, not a game test.
+
+## Build and verification
+- `npm run build` checks required browser and contract files.
+- `npm test` runs deterministic headless scenarios and contract regressions.
+- `node src/cli.mjs --seed 1 --night 1 --ticks 600 --out out.jsonl` runs a headless simulation; select night 1–3 and add `--scenario` / `--inputs` as needed.
+- `npm run start` serves the browser game at `http://127.0.0.1:5173`.
 
 ## Working rules
 - Derive acceptance criteria from the current phase document. Record assumptions where the PRD is ambiguous.
