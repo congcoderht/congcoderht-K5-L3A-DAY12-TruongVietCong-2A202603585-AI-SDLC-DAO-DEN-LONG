@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Phase 0 setup for Dao Den Long; game implementation begins from the released phase requirements.",
+  "description": "Dao Den Long deterministic game simulation and browser demo.",
   "scripts": {
-    "hello:headless": "node scripts/hello-headless.mjs"
+    "hello:headless": "node scripts/hello-headless.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/server.mjs",
+    "headless": "node src/cli.mjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"
