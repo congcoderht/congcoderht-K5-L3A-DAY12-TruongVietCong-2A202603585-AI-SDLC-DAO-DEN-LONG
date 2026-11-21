@@ -1,7 +1,9 @@
 # Agent instructions — Đảo Đèn Lồng
 
 ## Current scope
-- The repository now contains the Phase 1 baseline and Phase 2 extension; keep `docs/notes/phase-1-spec.md` and `phase-2-spec.md` aligned with behavior.
+- The repository contains Phase 1–3 (contract v1.2); keep `docs/notes/phase-1-spec.md`, `phase-2-spec.md` and `phase-3-spec.md` aligned with behavior.
+- Phase 3 rules (fuel, drain, dawn win, capacity, scoring) are recorded in `docs/decisions/ADR-003-*.md`; breaking changes go in `CHANGELOG.md`.
+- When a new rule invalidates an old test, rewrite or delete it with a comment giving the reason; never skip silently.
 - Read the supplied phase requirement and acceptance criteria before changing scope.
 - `game.contract.json` is the source of exposed tuning values. They must match Ticket-02 Part 1 (normalized table, see `context.md`) and Ticket-03 (contract v1.2). Never invent provisional values when a ticket gives a number.
 

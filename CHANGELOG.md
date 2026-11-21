@@ -14,3 +14,8 @@
 - Saved accessibility settings add the color-distinguishable palette. Off/low-fuel lanterns gain non-colour visual cues.
 
 See [ADR-003](docs/decisions/ADR-003-phase-3-fuel-and-dawn.md) for the state and victory design decisions.
+
+### Fixes in Phase 3
+
+- Tuning normalized to Ticket-02 Part 1 (player 6 m/s, shade 4 m/s / 4.5 on night 3, pickup 1 m, pulse 3 motes / 5 m 3D / 4 m push over 15 ticks, safe radius 6 m, hit drop 50%, dropped-mote TTL 480, dash cooldown 1.5 s, gravity 20, fall below Y = -10 with 60-tick respawn wait).
+- HUD shows carried/capacity, refuel/relight prompts, low-fuel warnings; lantern fuel bar and colour-blind palette added.
